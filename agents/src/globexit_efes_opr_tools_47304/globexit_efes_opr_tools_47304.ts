@@ -105,7 +105,9 @@ function getCollsWhithoutActiveState(): iColl[] {
         return ArraySelectAll(tools.xquery(`sql: 
             SELECT id 
             FROM dbo.collaborators
-            WHERE is_dismiss = false AND current_state NOT IN ('Декрет', 'Приостановка ТД') OR current_state IS NULL`
+            WHERE is_dismiss = false 
+                AND current_state NOT IN ('Декрет', 'Приостановка ТД') 
+                OR current_state IS NULL`
         ))
     } catch (e) {
         throw new Error('getCollsWhithoutActiveState -> ' + e.message)
