@@ -59,7 +59,7 @@ const stateSuspense = ArrayOptFind<iState>(states, "This.name == 'Приоста
 
 function getDate(days: number): Date {
     try {
-        return DateNewTime(DateOffset(Date(), -86400*OptInt(days)), 0, 0, 0)
+        return DateNewTime(DateOffset(Date(), (0-1)*86400*OptInt(days)), 0, 0, 0)
     } catch (e) {
         throw new Error('getDate -> ' + e.message)
     }
@@ -87,11 +87,10 @@ function getCollsByStateDate(date: string): iColl[] {
         return ArraySelectAll<iColl>(tools.xquery(`sql:
             SELECT c1.id 
             FROM dbo.collaborators c1
-            JOIN dbo.collaborator c2 ON c1.id = c2.id
-            CROSS JOIN LATERAL unnest(
-            xpath(
-                '/collaborator/history_states/history_state[(state_id="${stateDecree.id}" or state_id="${stateSuspense.id}") and finish_date="${date}"]',
-                c2.data
+                JOIN dbo.collaborator c2 ON c1.id = c2.id
+                CROSS JOIN LATERAL unnest(xpath(
+                    '/collaborator/history_states/history_state[(state_id=''${stateDecree.id}'' or state_id=''${stateSuspense.id}'') and finish_date=''${date}'']',
+                    c2.data
             ))
             WHERE c1.is_dismiss = false`
         ))
@@ -118,8 +117,8 @@ function getResumeData(collaborator_id: number): iResume[] {
     try {
         let result = ArrayOptFirstElem<{custom_elems: string}>(tools.xquery(`sql: \
             SELECT custom_elems FROM dbo.resumes r1
-            JOIN dbo.resume r2 ON r1.id = r2.id
-            CROSS JOIN LATERAL unnest(xpath('/resume/custom_elems'::text, r2.data)) AS custom_elems
+                JOIN dbo.resume r2 ON r1.id = r2.id
+                CROSS JOIN LATERAL unnest(xpath('/resume/custom_elems'::text, r2.data)) AS custom_elems
             WHERE r1.person_id = ${collaborator_id}`
         ))
         if (result !== undefined) {
