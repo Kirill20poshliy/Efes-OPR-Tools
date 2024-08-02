@@ -1,4 +1,8 @@
 ﻿const IS_DEBUG: boolean = Param.GetOptProperty('IS_DEBUG')
+const GROUP_ID: number = Param.GetOptProperty('GROUP_ID')
+const BOSS_TYPE_ID: number = Param.GetOptProperty('BOSS_TYPE_ID')
+const WC: string = Param.GetOptProperty('WC')
+const EXECUTIVES: string = Param.GetOptProperty('EXECUTIVES')
 
 
 const logConfig = {
@@ -15,27 +19,8 @@ interface iCategory {
 
 
 const collsCategorys: iCategory[] = categorys.GetOptProperty('category')
-const wcCategory = ArrayOptFind(collsCategorys, "This.name == 'WC – White collar'")
-const executivesCategory = ArrayOptFind(collsCategorys, "This.name == 'Executives'")
-
-
-function getGroupId(): number {
-    try {
-        const oGroup = ArrayOptFirstElem<{id: number}>(tools.xquery(`sql: 
-            SELECT id
-            FROM dbo.groups
-            WHERE name = 'Функциональные руководители для OPR Tool'`))
-        if (oGroup == undefined) {
-            throw new Error('Группы с именем: "Функциональные руководители для OPR Tool" не существует')
-        }
-        return oGroup.id
-    } catch (e) {
-        throw Error("getGroupId -> " + e.message)
-    }
-}
-
-
-const grId = getGroupId()
+const wcCategory = ArrayOptFind(collsCategorys, `This.name == '${WC}'`)
+const executivesCategory = ArrayOptFind(collsCategorys, `This.name == '${EXECUTIVES}'`)
 
 
 function getGroupColls(): {coll_id: number}[] {
@@ -45,7 +30,7 @@ function getGroupColls(): {coll_id: number}[] {
             FROM dbo.groups g1
                 JOIN dbo.group g2 ON g1.id = g2.id
                 CROSS JOIN LATERAL unnest(xpath('/group/collaborators/collaborator/collaborator_id/text()', g2.data)::text[]) AS coll_id
-            WHERE g1.id = ${grId}`
+            WHERE g1.id = ${GROUP_ID}`
         ))
     } catch (e) {
         throw Error("getGroupColls -> " + e.message)
@@ -59,12 +44,11 @@ function checkManager(id: number): boolean {
             const manager = ArrayOptFirstElem(tools.xquery(`sql:
                 SELECT fm.id
                 FROM dbo.func_managers fm
-                    JOIN dbo.boss_types bt ON fm.boss_type_id = bt.id
                     JOIN dbo.collaborators c ON fm.person_id = c.id
                 WHERE fm.person_id = ${id}
                     AND fm.catalog = 'collaborator'
                     AND fm.is_native = true
-                    AND bt.name = 'Непосредственный руководитель'
+                    AND fm.boss_type_id = ${BOSS_TYPE_ID}
                     AND ('${wcCategory.id}' = ANY(c.category_id) 
                     OR '${executivesCategory.id}' = ANY(c.category_id))`
             ))            
@@ -81,7 +65,7 @@ function checkManager(id: number): boolean {
 
 function deleteCollFromGroup(coll_id: number): void {
     try {
-        const gDoc = tools.open_doc(grId)
+        const gDoc = tools.open_doc(GROUP_ID)
         if (gDoc !== undefined) {
             const gColls: XmlElem<unknown> = gDoc.TopElem.OptChild('collaborators')
             if (gColls !== undefined) {
@@ -98,7 +82,7 @@ function deleteCollFromGroup(coll_id: number): void {
 function checkCollsInGroup(): void {
     try {
         const arrColls = getGroupColls()
-        if (ArrayCount(arrColls) !== 0) {
+        if (ArrayOptFirstElem(arrColls) !== undefined) {
             let i = 0
             let isManager: boolean
             for (i; i < ArrayCount(arrColls); i++) {
@@ -116,7 +100,7 @@ function checkCollsInGroup(): void {
 
 function pushCollToGroup(coll_id: number): void {
     try {
-        const gDoc = tools.open_doc(grId)
+        const gDoc = tools.open_doc(GROUP_ID)
         if (gDoc !== undefined) {
             const gColls: XmlElem<unknown> = gDoc.TopElem.OptChild('collaborators')
             if (gColls !== undefined) {
@@ -136,11 +120,10 @@ function checkCollsInManagers() {
         const arrManagers = ArraySelectAll<{id: number}>(tools.xquery(`sql:
             SELECT c.id
             FROM dbo.func_managers fm
-                JOIN dbo.boss_types bt ON fm.boss_type_id = bt.id
                 JOIN dbo.collaborators c ON fm.person_id = c.id
             WHERE fm.catalog = 'collaborator'
                 AND fm.is_native = true
-                AND bt.name = 'Непосредственный руководитель'
+                AND fm.boss_type_id = ${BOSS_TYPE_ID}
                 AND ('${wcCategory.id}' = ANY(c.category_id) 
                 OR '${executivesCategory.id}' = ANY(c.category_id))`
         ))
